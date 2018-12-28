@@ -23,24 +23,22 @@ class MyApp extends StatelessWidget {
 }
 
 class MyHomePage extends StatefulWidget {
-
   MyHomePage({Key key, this.title}) : super(key: key);
 
   final String title;
 
   @override
   _MyHomePageState createState() => _MyHomePageState();
-
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-
   bool isLoggedIn = false;
   var profileData;
   var events;
   var facebookLoginResult;
-  
-  void onLoginStatusChanged(bool isLoggedIn, var profileData, var facebookLoginResult) {
+
+  void onLoginStatusChanged(
+      bool isLoggedIn, var profileData, var facebookLoginResult) {
     setState(() {
       this.isLoggedIn = isLoggedIn;
       this.profileData = profileData;
@@ -58,12 +56,13 @@ class _MyHomePageState extends State<MyHomePage> {
         body: Container(
           child: isLoggedIn
               ? FutureBuilder<List<Event>>(
-                future: fetchEvents(http.Client(), facebookLoginResult),
-                builder: (context, snapshot){
-                  if(snapshot.hasError) print(snapshot.error);
-                  return snapshot.hasData ? EventList(snapshot.data) : Center(child:CircularProgressIndicator());
-                }
-              )
+                  future: fetchEvents(http.Client(), facebookLoginResult),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) print(snapshot.error);
+                    return snapshot.hasData
+                        ? EventList(snapshot.data)
+                        : Center(child: CircularProgressIndicator());
+                  })
               : RaisedButton(
                   child: Text("Click to Login"),
                   onPressed: () => initiateFacebookLogin(),
@@ -73,19 +72,17 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
+  Future<List<Event>> fetchEvents(
+      http.Client client, FacebookLoginResult facebookLoginResult) async {
+    final response = await client.get(
+        'https://graph.facebook.com/v2.12/me/events?access_token=${facebookLoginResult.accessToken.token}');
 
- Future<List<Event>> fetchEvents(http.Client client, FacebookLoginResult facebookLoginResult) async {
+    final parsed = json.decode(response.body);
 
-  final response = await client.get('https://graph.facebook.com/v2.12/me/events?access_token=${facebookLoginResult.accessToken.token}');
- 
-  final parsed = json.decode(response.body);
- 
-  return parsed['data'].map<Event>((json) => Event.fromJSON(json)).toList();
-}
-
+    return parsed['data'].map<Event>((json) => Event.fromJSON(json)).toList();
+  }
 
   void initiateFacebookLogin() async {
-
     var facebookLogin = FacebookLogin();
     var facebookLoginResult = await facebookLogin
         .logInWithReadPermissions(['email', 'public_profile', 'user_events']);
@@ -103,7 +100,6 @@ class _MyHomePageState extends State<MyHomePage> {
 
         var graphResponse = await http.get(
             'https://graph.facebook.com/v2.12/me?fields=name,first_name,last_name,email&access_token=${facebookLoginResult.accessToken.token}');
-
 
         var profile = json.decode(graphResponse.body);
 
