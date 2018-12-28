@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_facebook_login/flutter_facebook_login.dart';
+import 'package:fb_events/event_list.dart';
+import 'package:fb_events/model/event.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-
+import 'dart:async';
 
 void main() => runApp(MyApp());
 
@@ -11,18 +13,9 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'FB Events',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // Try running your application with "flutter run". You'll see the
-        // application has a blue toolbar. Then, without quitting the app, try
-        // changing the primarySwatch below to Colors.green and then invoke
-        // "hot reload" (press "r" in the console where you ran "flutter run",
-        // or simply save your changes to "hot reload" in a Flutter IDE).
-        // Notice that the counter didn't reset back to zero; the application
-        // is not restarted.
-        primarySwatch: Colors.blue,
+        primarySwatch: Colors.green,
       ),
       home: MyHomePage(title: 'FB Events'),
     );
@@ -30,31 +23,28 @@ class MyApp extends StatelessWidget {
 }
 
 class MyHomePage extends StatefulWidget {
+
   MyHomePage({Key key, this.title}) : super(key: key);
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
 
   final String title;
 
   @override
   _MyHomePageState createState() => _MyHomePageState();
+
 }
 
 class _MyHomePageState extends State<MyHomePage> {
+
   bool isLoggedIn = false;
   var profileData;
-
-  void onLoginStatusChanged(bool isLoggedIn, var profileData ) {
+  var events;
+  var facebookLoginResult;
+  
+  void onLoginStatusChanged(bool isLoggedIn, var profileData, var facebookLoginResult) {
     setState(() {
       this.isLoggedIn = isLoggedIn;
       this.profileData = profileData;
+      this.facebookLoginResult = facebookLoginResult;
     });
   }
 
@@ -63,47 +53,63 @@ class _MyHomePageState extends State<MyHomePage> {
     return MaterialApp(
       home: Scaffold(
         appBar: AppBar(
-          title: Text("Facebook Login"),
+          title: Text("Facebook Events"),
         ),
         body: Container(
-          child: Center(
-            child: isLoggedIn
-                ? Text("Logged in as: ${profileData['name']}")
-                : RaisedButton(
-                    child: Text("Login"),
-                onPressed: () => initiateFacebookLogin(),
-                  ),
-          ),
+          child: isLoggedIn
+              ? FutureBuilder<List<Event>>(
+                future: fetchEvents(http.Client(), facebookLoginResult),
+                builder: (context, snapshot){
+                  if(snapshot.hasError) print(snapshot.error);
+                  return snapshot.hasData ? EventList(snapshot.data) : Center(child:CircularProgressIndicator());
+                }
+              )
+              : RaisedButton(
+                  child: Text("Click to Login"),
+                  onPressed: () => initiateFacebookLogin(),
+                ),
         ),
       ),
     );
   }
 
+
+ Future<List<Event>> fetchEvents(http.Client client, FacebookLoginResult facebookLoginResult) async {
+
+  final response = await client.get('https://graph.facebook.com/v2.12/me/events?access_token=${facebookLoginResult.accessToken.token}');
+ 
+  final parsed = json.decode(response.body);
+ 
+  return parsed['data'].map<Event>((json) => Event.fromJSON(json)).toList();
+}
+
+
   void initiateFacebookLogin() async {
+
     var facebookLogin = FacebookLogin();
-    var facebookLoginResult =
-        await facebookLogin.logInWithReadPermissions(['email','public_profile', 'user_events']);
+    var facebookLoginResult = await facebookLogin
+        .logInWithReadPermissions(['email', 'public_profile', 'user_events']);
     switch (facebookLoginResult.status) {
       case FacebookLoginStatus.error:
         print("Error");
-        onLoginStatusChanged(false, null);
+        onLoginStatusChanged(false, null, null);
         break;
       case FacebookLoginStatus.cancelledByUser:
         print("CancelledByUser");
-        onLoginStatusChanged(false, null);
+        onLoginStatusChanged(false, null, null);
         break;
       case FacebookLoginStatus.loggedIn:
-
         print("LoggedIn");
 
         var graphResponse = await http.get(
-            'https://graph.facebook.com/v2.12/me?fields=name,first_name,last_name,email&access_token=${facebookLoginResult
-                .accessToken.token}');
+            'https://graph.facebook.com/v2.12/me?fields=name,first_name,last_name,email&access_token=${facebookLoginResult.accessToken.token}');
+
 
         var profile = json.decode(graphResponse.body);
+
         print(profile.toString());
 
-        onLoginStatusChanged(true, profile);
+        onLoginStatusChanged(true, profile, facebookLoginResult);
 
         break;
     }
